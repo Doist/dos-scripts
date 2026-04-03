@@ -105,44 +105,6 @@ function Clone-Repo {
     Run-Quiet -Step "Cloning $Repo into $TargetDir" -Command "gh" -Args @("repo", "clone", $Repo, $TargetDir)
 }
 
-function Print-AgentAppGuidance {
-    Write-Stage "AI Agent Apps"
-
-    $foundAny = $false
-    if (Get-Command claude -ErrorAction SilentlyContinue) {
-        Write-Host "  - Found Claude Code CLI (`claude`)"
-        $foundAny = $true
-    }
-
-    if (Get-Command codex -ErrorAction SilentlyContinue) {
-        Write-Host "  - Found Codex CLI (`codex`)"
-        $foundAny = $true
-    }
-
-    if (Get-Command cursor -ErrorAction SilentlyContinue) {
-        Write-Host "  - Found Cursor CLI (`cursor`)"
-        $foundAny = $true
-    }
-
-    if (Get-Command gemini -ErrorAction SilentlyContinue) {
-        Write-Host "  - Found Gemini CLI (`gemini`)"
-        $foundAny = $true
-    }
-
-    if (-not $foundAny) {
-        Write-Host "  - No common agent CLI detected (`claude`, `codex`, `cursor`, or `gemini`)."
-    }
-
-    Write-Host ""
-    Write-Host "Agent app options:"
-    Write-Host "  - Cursor (GUI): https://cursor.com/downloads"
-    Write-Host "  - Claude Desktop (GUI): https://claude.ai/download"
-    Write-Host "  - OpenAI Codex: https://openai.com/index/introducing-codex/"
-    Write-Host "  - ChatGPT Desktop (GUI): https://openai.com/chatgpt/desktop/"
-    Write-Host "  - Claude Code (CLI): https://docs.anthropic.com/en/docs/claude-code"
-    Write-Host "  - Codex CLI: https://github.com/openai/codex"
-}
-
 New-Item -ItemType File -Path $LogFile -Force | Out-Null
 
 Write-Host "Doist OS bootstrap"
@@ -167,9 +129,14 @@ if (-not (Test-Path $SetupScript)) {
 }
 
 Write-Host "  - Running Doist OS setup script"
-& $SetupScript
-if ($LASTEXITCODE -ne 0) {
-    Fail "Repository setup script failed"
+try {
+    Push-Location -Path $TargetDir
+    & $SetupScript
+    if ($LASTEXITCODE -ne 0) {
+        Fail "Repository setup script failed"
+    }
+} finally {
+    Pop-Location
 }
 
 Write-Host ""
