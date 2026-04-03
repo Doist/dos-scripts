@@ -1,0 +1,28 @@
+name: Request Reviews
+
+on:
+    pull_request:
+        types: [opened, ready_for_review]
+
+jobs:
+    request-reviews:
+        name: Request Reviews
+        runs-on: ubuntu-latest
+        if: |
+            !github.event.pull_request.draft &&
+            github.actor != 'dependabot[bot]' &&
+            github.actor != 'renovate[bot]'
+        steps:
+            - name: Request reviews from AI Ops group
+              uses: doist/auto-request-reviews-action@v1
+              with:
+                  reviewers: 1
+                  team: "Doist/ai-ops"
+                  token: ${{ secrets.GH_PROJECTS_TOKEN }}
+
+            - name: Request reviews from AI Ops Devs group
+              uses: doist/auto-request-reviews-action@v1
+              with:
+                  reviewers: 1
+                  team: "Doist/ai-ops-devs"
+                  token: ${{ secrets.GH_PROJECTS_TOKEN }}
