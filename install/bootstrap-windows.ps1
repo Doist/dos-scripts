@@ -160,8 +160,18 @@ Write-Stage "Accessing private repository"
 Ensure-GhAuth
 Clone-Repo
 
+Write-Stage "Running repository setup"
+$SetupScript = Join-Path $TargetDir "scripts\setup.ps1"
+if (-not (Test-Path $SetupScript)) {
+    Fail "Missing setup script at $SetupScript"
+}
+
+Write-Host "  - Running Doist OS setup script"
+& $SetupScript
+if ($LASTEXITCODE -ne 0) {
+    Fail "Repository setup script failed"
+}
+
 Write-Host ""
-Write-Host "Repository cloned: $TargetDir"
-Write-Host "Windows Doist OS setup is not implemented yet."
-Write-Host "Next step: open the repo and follow the current manual onboarding path."
-Print-AgentAppGuidance
+Write-Host "Bootstrap complete."
+Write-Host "Repository: $TargetDir"
