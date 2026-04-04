@@ -95,6 +95,7 @@ function Ensure-GhAuth {
 function Clone-Repo {
     if (Test-Path (Join-Path $TargetDir '.git')) {
         Write-Host "  - Repo already cloned at $TargetDir"
+        Run-Quiet -Step "Pulling latest changes" -Command "git" -Args @("-C", $TargetDir, "pull", "--rebase", "origin", "main")
         return
     }
 

@@ -94,6 +94,7 @@ ensure_gh_auth() {
 clone_repo() {
   if [ -d "$TARGET_DIR/.git" ]; then
     say "  - Repo already cloned at $TARGET_DIR"
+    run_quiet "Pulling latest changes" git -C "$TARGET_DIR" pull --rebase origin main
     return
   fi
 
