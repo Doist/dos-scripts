@@ -4,11 +4,12 @@ set -euo pipefail
 
 REPO="Doist/doist-os"
 TARGET_DIR="${DOIST_OS_DIR:-$HOME/doist-os}"
-LOG_FILE="${TMPDIR:-/tmp}/doist-bootstrap-$(date +%Y%m%d-%H%M%S).log"
+LOG_FILE="$(mktemp "${TMPDIR:-/tmp}/doist-bootstrap-XXXXXX")"
 
 PACKAGE_MANAGER=""
 SUDO=()
 APT_UPDATED=0
+PACMAN_UPDATED=0
 
 say() { echo "$1"; }
 
@@ -58,6 +59,13 @@ has_cmd() {
   command -v "$1" >/dev/null 2>&1
 }
 
+has_ca_certificates() {
+  [ -f /etc/ssl/certs/ca-certificates.crt ] \
+    || [ -f /etc/pki/tls/certs/ca-bundle.crt ] \
+    || [ -f /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem ] \
+    || [ -f /etc/ssl/ca-bundle.pem ]
+}
+
 detect_package_manager() {
   if has_cmd apt-get; then
     PACKAGE_MANAGER="apt"
@@ -97,6 +105,15 @@ ensure_apt_updated() {
   APT_UPDATED=1
 }
 
+ensure_pacman_updated() {
+  if [ "$PACMAN_UPDATED" -eq 1 ]; then
+    return
+  fi
+
+  run_root_quiet "Refreshing pacman package database and upgrading installed packages" pacman -Syu --noconfirm
+  PACMAN_UPDATED=1
+}
+
 install_system_packages() {
   local step="$1"
   shift
@@ -104,7 +121,7 @@ install_system_packages() {
   case "$PACKAGE_MANAGER" in
     apt)
       ensure_apt_updated
-      run_root_quiet "$step" apt-get install -y "$@"
+      run_root_quiet "$step" env DEBIAN_FRONTEND=noninteractive apt-get install -y "$@"
       ;;
     dnf)
       run_root_quiet "$step" dnf install -y "$@"
@@ -116,19 +133,21 @@ install_system_packages() {
       run_root_quiet "$step" zypper install -y "$@"
       ;;
     pacman)
-      run_root_quiet "$step" pacman -Sy --noconfirm "$@"
+      ensure_pacman_updated
+      run_root_quiet "$step" pacman -S --needed --noconfirm "$@"
       ;;
   esac
 }
 
 ensure_network_tools() {
-  if has_cmd curl; then
+  if has_cmd curl && has_ca_certificates; then
     say "  - Network bootstrap tools already installed"
     return
   fi
 
   install_system_packages "Installing network bootstrap tools" curl ca-certificates
   has_cmd curl || fail "Network bootstrap tools installed but 'curl' is still not available"
+  has_ca_certificates || fail "Network bootstrap tools installed but the CA certificate bundle is still unavailable"
 }
 
 ensure_git() {
@@ -157,6 +176,7 @@ chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
 mkdir -p -m 755 /etc/apt/sources.list.d
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list
 '
+      APT_UPDATED=0
       ensure_apt_updated
       install_system_packages "Installing GitHub CLI" gh
       ;;
