@@ -71,7 +71,7 @@ ensure_homebrew() {
   # sudo can still prompt on the controlling terminal.
   {
     echo
-    echo "[$(date +%Y-%m-%dT%H:%M:%S)] /bin/bash -c yes \"\" | INTERACTIVE=1 /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+    echo "[$(date +%Y-%m-%dT%H:%M:%S)] /bin/bash -c 'yes \"\" | INTERACTIVE=1 /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"'"
   } >>"$LOG_FILE"
   /bin/bash -c 'yes "" | INTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' 2>&1 | tee -a "$LOG_FILE" || fail "Installing Homebrew"
   ensure_brew_on_path
