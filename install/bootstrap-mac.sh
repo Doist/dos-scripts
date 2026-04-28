@@ -62,7 +62,18 @@ ensure_homebrew() {
     return
   fi
 
-  run_quiet "Installing Homebrew" /bin/bash -c 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+  say "  - Installing Homebrew"
+  say "    Homebrew may prompt for your macOS password."
+  # Homebrew's NONINTERACTIVE mode skips the confirmation prompt, but it also
+  # suppresses the sudo password prompt and fails with a misleading
+  # "needs to be an Administrator" error for fresh admin accounts. Force the
+  # installer into interactive mode and feed the return key automatically so
+  # sudo can still prompt on the controlling terminal.
+  {
+    echo
+    echo "[$(date +%Y-%m-%dT%H:%M:%S)] /bin/bash -c 'yes \"\" | INTERACTIVE=1 /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"'"
+  } >>"$LOG_FILE"
+  /bin/bash -c 'yes "" | INTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' 2>&1 | tee -a "$LOG_FILE" || fail "Installing Homebrew"
   ensure_brew_on_path
   has_cmd brew || fail "Homebrew installed but brew is still not in PATH"
 }
