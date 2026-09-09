@@ -57,6 +57,20 @@ class BootstrapTests(unittest.TestCase):
                     self.assertNotIn('\nclone\n', trace)
             shutil.rmtree(target)
 
+    def test_existing_linked_worktree_is_reused(self):
+        seed = self.checkout('seed')
+        subprocess.run(['git', '-C', str(seed), '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.com', 'commit', '--allow-empty', '-qm', 'fixture'], check=True)
+        subprocess.run(['git', '-C', str(seed), 'switch', '-qc', 'seed'], check=True)
+        target = self.home / 'doist-os'
+        subprocess.run(['git', '-C', str(seed), 'worktree', 'add', '-q', str(target), 'main'], check=True)
+        self.assertTrue((target / '.git').is_file())
+        for name in self.each():
+            with self.subTest(name=name):
+                result, trace = self.run_installer(name)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn(f'git\n-C\n{target}\npull\n--rebase\norigin\nmain\n', trace)
+                self.assertNotIn('\nclone\n', trace)
+
     def test_new_upstream_and_ssh_transports_are_accepted(self):
         target = self.checkout('todoist-os')
         for remote in ['https://github.com/doist/todoist-os.git', 'git@github.com:Doist/todoist-os.git', 'ssh://git@github.com/Doist/doist-os.git']:
