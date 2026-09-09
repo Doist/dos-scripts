@@ -12,10 +12,11 @@ $repoAssignment = $ast.EndBlock.Statements | Where-Object {
     $_ -is [System.Management.Automation.Language.AssignmentStatementAst] -and $_.Left.Extent.Text -eq '$Repo'
 }
 . ([scriptblock]::Create($repoAssignment.Extent.Text))
+$RealRunQuiet = ${function:Run-Quiet}
 function Fail($message) { throw $message }
 function Run-Quiet {
-    param($Step, $Command, [string[]]$Args)
-    $script:Recorded = @($Command) + $Args
+    param($Step, $Command, [Alias('Args')][string[]]$CommandArgs)
+    $script:Recorded = @($Command) + $CommandArgs
 }
 function Assert-Equal($actual, $expected) {
     if ($actual -cne $expected) { throw "Expected '$expected', got '$actual'" }
@@ -60,6 +61,14 @@ try {
     Assert-Equal (Select-TargetDir -HomeDirectory $fixture) $old
     $env:TODOIST_OS_DIR = $new
     Assert-Equal (Select-TargetDir -HomeDirectory $fixture) $new
+
+    # Verify the real advanced function forwards arguments, then keep network
+    # operations stubbed in the remaining clone/pull checks.
+    $LogFile = Join-Path $fixture 'run-quiet.log'
+    & $RealRunQuiet -Step 'Inspect fixture checkout' -Command 'git' -Args @('-C', $new, 'rev-parse', '--show-toplevel')
+    $loggedPath = (Get-Content $LogFile | Select-Object -Last 1).Replace('\', '/')
+    $expectedPath = (& git -C $new rev-parse --show-toplevel).Replace('\', '/')
+    Assert-Equal $loggedPath $expectedPath
 
     $script:Recorded = @()
     Clone-Repo
