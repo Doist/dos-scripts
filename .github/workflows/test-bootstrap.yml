@@ -1,0 +1,29 @@
+name: Test bootstrap scripts
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  bash:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: bash -n install/bootstrap-mac.sh && bash -n install/bootstrap-linux.sh
+      - run: python3 -m unittest discover -s tests -v
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - shell: pwsh
+        run: ./tests/bootstrap-windows.tests.ps1

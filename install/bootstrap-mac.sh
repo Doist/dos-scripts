@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="Doist/doist-os"
-TARGET_DIR="${DOIST_OS_DIR:-$HOME/doist-os}"
-LOG_FILE="${TMPDIR:-/tmp}/doist-bootstrap-$(date +%Y%m%d-%H%M%S).log"
+REPO="Doist/todoist-os"
+TARGET_DIR="" # Resolved after Git is available.
+LOG_FILE="${TMPDIR:-/tmp}/todoist-os-bootstrap-$(date +%Y%m%d-%H%M%S).log"
 
 say() { echo "$1"; }
 
@@ -102,14 +102,51 @@ ensure_gh_auth() {
   gh auth login --web --git-protocol https --hostname github.com || fail "GitHub authentication failed"
 }
 
+select_target_dir() {
+  # Keep existing checkouts in place, including the older README's Documents path.
+  if [ -n "${TODOIST_OS_DIR:-}" ]; then
+    TARGET_DIR="$TODOIST_OS_DIR"
+    return
+  fi
+  if [ -n "${DOIST_OS_DIR:-}" ]; then
+    TARGET_DIR="$DOIST_OS_DIR"
+    return
+  fi
+  local candidate
+  local found=""
+  for candidate in "$HOME/todoist-os" "$HOME/doist-os" "$HOME/Documents/todoist-os" "$HOME/Documents/doist-os"; do
+    if [ -e "$candidate/.git" ]; then
+      if [ -n "$found" ]; then
+        fail "Multiple workspace checkouts found. Set TODOIST_OS_DIR to the one you want to update."
+      fi
+      found="$candidate"
+    fi
+  done
+  TARGET_DIR="${found:-$HOME/todoist-os}"
+}
+
+validate_checkout() {
+  local remote branch changes
+  remote="$(git -C "$TARGET_DIR" config --get remote.origin.url)" || fail "Cannot read the existing checkout's origin."
+  if [[ ! "$remote" =~ ^(https://github\.com/|git@github\.com:|ssh://git@github\.com/)[Dd]oist/(doist-os|todoist-os)(\.git)?$ ]]; then
+    fail "The target checkout is not the TodoistOS upstream. Set TODOIST_OS_DIR to your TodoistOS checkout."
+  fi
+  branch="$(git -C "$TARGET_DIR" branch --show-current)" || fail "Cannot read the existing checkout's branch."
+  [ "$branch" = "main" ] || fail "Switch the target checkout to main before rerunning setup."
+  changes="$(git -C "$TARGET_DIR" status --porcelain)" || fail "Cannot read the existing checkout status."
+  [ -z "$changes" ] || fail "Commit or stash changes in the target checkout before rerunning setup."
+}
+
 clone_repo() {
-  if [ -d "$TARGET_DIR/.git" ]; then
+  select_target_dir
+  if [ -e "$TARGET_DIR/.git" ]; then
+    validate_checkout
     say "  - Repo already cloned at $TARGET_DIR"
     run_quiet "Pulling latest changes" git -C "$TARGET_DIR" pull --rebase origin main
     return
   fi
 
-  if [ -e "$TARGET_DIR" ] && [ ! -d "$TARGET_DIR/.git" ]; then
+  if [ -e "$TARGET_DIR" ] && [ ! -e "$TARGET_DIR/.git" ]; then
     fail "Target path exists but is not a git repo: $TARGET_DIR"
   fi
 
@@ -120,7 +157,7 @@ run_repo_setup() {
   [ -x "$TARGET_DIR/scripts/setup.sh" ] || chmod +x "$TARGET_DIR/scripts/setup.sh" || true
   [ -f "$TARGET_DIR/scripts/setup.sh" ] || fail "Missing setup script at $TARGET_DIR/scripts/setup.sh"
 
-  say "  - Running Doist OS setup script"
+  say "  - Running TodoistOS setup script"
   (
     cd "$TARGET_DIR"
     ./scripts/setup.sh
@@ -133,7 +170,7 @@ main() {
   local os
   os="$(uname -s)"
 
-  echo "Doist OS bootstrap"
+  echo "TodoistOS bootstrap"
   echo "Log file: $LOG_FILE"
 
   case "$os" in
