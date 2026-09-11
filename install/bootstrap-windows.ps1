@@ -1,8 +1,8 @@
 $ErrorActionPreference = 'Stop'
 
-$Repo = 'Doist/doist-os'
-$TargetDir = if ($env:DOIST_OS_DIR) { $env:DOIST_OS_DIR } else { Join-Path $HOME 'doist-os' }
-$LogFile = Join-Path $env:TEMP ("doist-bootstrap-{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+$Repo = 'Doist/todoist-os'
+$TargetDir = $null # Resolved after Git is available.
+$LogFile = Join-Path $env:TEMP ("todoist-os-bootstrap-{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
 
 function Write-Stage($message) {
     Write-Host ""
@@ -92,8 +92,42 @@ function Ensure-GhAuth {
     Write-Host "  - GitHub CLI authenticated successfully"
 }
 
+function Select-TargetDir {
+    param([string]$HomeDirectory = $HOME)
+    if ($env:TODOIST_OS_DIR) { return $env:TODOIST_OS_DIR }
+    if ($env:DOIST_OS_DIR) { return $env:DOIST_OS_DIR }
+    $candidates = @(
+        (Join-Path $HomeDirectory 'todoist-os'), (Join-Path $HomeDirectory 'doist-os'),
+        (Join-Path $HomeDirectory 'Documents/todoist-os'), (Join-Path $HomeDirectory 'Documents/doist-os')
+    )
+    $found = @($candidates | Where-Object { Test-Path (Join-Path $_ '.git') })
+    if ($found.Count -gt 1) {
+        Fail "Multiple workspace checkouts found. Set TODOIST_OS_DIR to the one you want to update."
+    }
+    if ($found.Count -eq 1) { return $found[0] }
+    return (Join-Path $HomeDirectory 'todoist-os')
+}
+
+function Test-WorkspaceCheckout {
+    $remote = & git -C $TargetDir config --get remote.origin.url
+    if ($LASTEXITCODE -ne 0) { Fail "Cannot read the existing checkout's origin." }
+    if ($remote -notmatch '^(https://github\.com/|git@github\.com:|ssh://git@github\.com/)Doist/(doist-os|todoist-os)(\.git)?$') {
+        Fail "The target checkout is not the TodoistOS upstream. Set TODOIST_OS_DIR to your TodoistOS checkout."
+    }
+    $branch = & git -C $TargetDir branch --show-current
+    if ($LASTEXITCODE -ne 0 -or $branch -ne 'main') {
+        Fail "Switch the target checkout to main before rerunning setup."
+    }
+    $changes = & git -C $TargetDir status --porcelain
+    if ($LASTEXITCODE -ne 0 -or $changes) {
+        Fail "Commit or stash changes in the target checkout before rerunning setup."
+    }
+}
+
 function Clone-Repo {
+    $script:TargetDir = Select-TargetDir
     if (Test-Path (Join-Path $TargetDir '.git')) {
+        Test-WorkspaceCheckout
         Write-Host "  - Repo already cloned at $TargetDir"
         Run-Quiet -Step "Pulling latest changes" -Command "git" -Args @("-C", $TargetDir, "pull", "--rebase", "origin", "main")
         return
@@ -108,7 +142,7 @@ function Clone-Repo {
 
 New-Item -ItemType File -Path $LogFile -Force | Out-Null
 
-Write-Host "Doist OS bootstrap"
+Write-Host "TodoistOS bootstrap"
 Write-Host "Log file: $LogFile"
 
 Write-Stage "Preparing Windows prerequisites"
@@ -129,7 +163,7 @@ if (-not (Test-Path $SetupScript)) {
     Fail "Missing setup script at $SetupScript"
 }
 
-Write-Host "  - Running Doist OS setup script"
+Write-Host "  - Running TodoistOS setup script"
 try {
     Push-Location -Path $TargetDir
     & $SetupScript
